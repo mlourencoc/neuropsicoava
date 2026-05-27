@@ -127,29 +127,32 @@ def _renderizar_teste(codigo, avaliacao_id, paciente_id, idade, anos_esc, sexo, 
     # Upload de foto (modo IA)
     provedor = st.session_state.get("provedor_ia", "offline")
     if modo_ia:
-        st.markdown(f"#### Upload de Foto do Teste (IA: {provedor.capitalize()})")
-        foto = st.file_uploader(
-            "Envie uma foto da folha de registro (JPG/PNG):",
-            type=["jpg", "jpeg", "png"],
-            key=f"foto_{codigo}_{avaliacao_id}",
-        )
-        if foto and st.button(f"Ler foto com {provedor.capitalize()}", key=f"ler_foto_{codigo}"):
-            from ia.visao import ler_foto_teste
-            with st.spinner("Analisando imagem..."):
-                resultado_foto = ler_foto_teste(
-                    foto.read(), codigo,
-                    provedor=provedor,
-                    api_key=st.session_state.get(f"api_key_{provedor}", ""),
-                )
-            if "erro" in resultado_foto:
-                st.error(resultado_foto["erro"])
-            elif "_aviso" in resultado_foto:
-                st.warning(resultado_foto["_aviso"])
-                st.code(resultado_foto.get("texto_bruto", ""))
-            else:
-                st.success("Dados extraídos! Revise abaixo e confirme.")
-                st.session_state[f"dados_foto_{codigo}"] = resultado_foto
-                st.json(resultado_foto)
+        if codigo == "RAVLT":
+            _upload_ravlt_duplo(avaliacao_id, provedor)
+        else:
+            st.markdown(f"#### Upload de Foto do Teste (IA: {provedor.capitalize()})")
+            foto = st.file_uploader(
+                "Envie uma foto da folha de registro (JPG/PNG):",
+                type=["jpg", "jpeg", "png"],
+                key=f"foto_{codigo}_{avaliacao_id}",
+            )
+            if foto and st.button(f"Ler foto com {provedor.capitalize()}", key=f"ler_foto_{codigo}"):
+                from ia.visao import ler_foto_teste
+                with st.spinner("Analisando imagem..."):
+                    resultado_foto = ler_foto_teste(
+                        foto.read(), codigo,
+                        provedor=provedor,
+                        api_key=st.session_state.get(f"api_key_{provedor}", ""),
+                    )
+                if "erro" in resultado_foto:
+                    st.error(resultado_foto["erro"])
+                elif "_aviso" in resultado_foto:
+                    st.warning(resultado_foto["_aviso"])
+                    st.code(resultado_foto.get("texto_bruto", ""))
+                else:
+                    st.success("Dados extraídos! Revise abaixo e confirme.")
+                    st.session_state[f"dados_foto_{codigo}"] = resultado_foto
+                    st.json(resultado_foto)
 
         st.markdown("---")
 
@@ -173,6 +176,62 @@ def _renderizar_teste(codigo, avaliacao_id, paciente_id, idade, anos_esc, sexo, 
 # ──────────────────────────────────────────────────────────────────────────────
 # Formulários por teste
 # ──────────────────────────────────────────────────────────────────────────────
+
+_RAVLT_WIDGET_MAP = {
+    "A1": "ravlt_a1", "A2": "ravlt_a2", "A3": "ravlt_a3",
+    "A4": "ravlt_a4", "A5": "ravlt_a5", "B1": "ravlt_b1",
+    "A6": "ravlt_a6", "A7": "ravlt_a7",
+    "rec_hits": "ravlt_rec_h", "rec_fa": "ravlt_rec_fa",
+}
+
+
+def _upload_ravlt_duplo(avaliacao_id, provedor):
+    from ia.visao import ler_foto_teste
+    st.markdown(f"#### Upload de Fotos do RAVLT (IA: {provedor.capitalize()})")
+    col1, col2 = st.columns(2)
+    with col1:
+        foto_frente = st.file_uploader(
+            "📄 Frente (A1–A6, B1):",
+            type=["jpg", "jpeg", "png"],
+            key=f"foto_RAVLT_frente_{avaliacao_id}",
+        )
+    with col2:
+        foto_verso = st.file_uploader(
+            "📄 Verso (A7, Reconhecimento):",
+            type=["jpg", "jpeg", "png"],
+            key=f"foto_RAVLT_verso_{avaliacao_id}",
+        )
+
+    if (foto_frente or foto_verso) and st.button(
+        f"Ler foto(s) com {provedor.capitalize()}", key="ler_foto_RAVLT"
+    ):
+        dados_combinados = {}
+        api_key = st.session_state.get(f"api_key_{provedor}", "")
+        with st.spinner("Analisando imagem(ns)..."):
+            for foto in [foto_frente, foto_verso]:
+                if foto is None:
+                    continue
+                r = ler_foto_teste(foto.read(), "RAVLT", provedor=provedor, api_key=api_key)
+                if "erro" in r:
+                    st.error(r["erro"])
+                elif "_aviso" in r:
+                    st.warning(r["_aviso"])
+                else:
+                    dados_combinados.update({k: v for k, v in r.items() if not k.startswith("_") and v is not None})
+
+        if dados_combinados:
+            st.success("Dados extraídos! Revise os campos abaixo e clique em Calcular RAVLT.")
+            st.json(dados_combinados)
+            for campo, widget_key in _RAVLT_WIDGET_MAP.items():
+                val = dados_combinados.get(campo)
+                if val is not None:
+                    try:
+                        st.session_state[widget_key] = int(val)
+                    except (ValueError, TypeError):
+                        pass
+            st.session_state["dados_foto_RAVLT"] = dados_combinados
+            st.rerun()
+
 
 def _form_ravlt(avaliacao_id, idade, anos_esc, existentes):
     from testes.ravlt import calcular_escores
