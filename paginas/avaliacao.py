@@ -81,29 +81,34 @@ def render():
     resultados_existentes = {r["teste_codigo"]: r for r in buscar_resultados_avaliacao(avaliacao_id)}
 
     st.markdown(f"### Testes — Avaliação ID {avaliacao_id}")
-    st.caption(f"Testes já inseridos: {', '.join(resultados_existentes.keys()) or 'nenhum'}")
 
-    # Seleção de testes
+    # Grade de testes com status visual
     testes_disponiveis = {
-        "RAVLT":  "RAVLT — Memória Episódica Verbal",
-        "FDT":    "FDT — Five Digit Test (Velocidade / Inibição / Flexibilidade)",
-        "TMT":    "TMT — Trail Making Test A e B",
-        "SRS2":   "SRS-2 — Responsividade Social",
-        "ETDAH":  "ETDAH — Sintomas de TDAH (DSM-5)",
-        "BDI2":   "BDI-II — Inventário de Depressão de Beck",
-        "BAI":    "BAI — Inventário de Ansiedade de Beck",
+        "RAVLT":  "RAVLT\nMemória Episódica Verbal",
+        "FDT":    "FDT\nFive Digit Test",
+        "TMT":    "TMT\nTrail Making Test",
+        "SRS2":   "SRS-2\nResponsividade Social",
+        "ETDAH":  "ETDAH\nSintomas de TDAH",
+        "BDI2":   "BDI-II\nDepressão de Beck",
+        "BAI":    "BAI\nAnsiedade de Beck",
     }
 
-    teste_selecionado = st.selectbox(
-        "Selecionar teste para inserir:",
-        list(testes_disponiveis.values()),
-    )
-    codigo = [k for k, v in testes_disponiveis.items() if v == teste_selecionado][0]
+    st.caption("Clique em um teste para abrir o formulário de entrada:")
+    cols = st.columns(4)
+    for i, (cod, label) in enumerate(testes_disponiveis.items()):
+        feito = cod in resultados_existentes
+        icone = "✅" if feito else "⬜"
+        with cols[i % 4]:
+            if st.button(f"{icone} {label}", key=f"btn_sel_{cod}", use_container_width=True):
+                st.session_state["teste_ativo"] = cod
 
-    # Badge se já preenchido
-    if codigo in resultados_existentes:
-        st.success(f"✅ {codigo} já inserido nesta avaliação. Você pode atualizar os dados abaixo.")
+    codigo = st.session_state.get("teste_ativo", "RAVLT")
+    if codigo not in testes_disponiveis:
+        codigo = "RAVLT"
 
+    st.markdown("---")
+    feito = codigo in resultados_existentes
+    st.markdown(f"**Editando:** `{codigo}` {'✅ (já inserido — você pode atualizar)' if feito else '🆕 (novo)'}")
     st.markdown("---")
 
     # Roteador por teste
