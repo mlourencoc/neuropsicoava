@@ -166,7 +166,7 @@ def _testar_provedor(provedor, api_key):
         elif provedor == "gemini":
             from google import genai
             client = genai.Client(api_key=api_key)
-            resp   = client.models.generate_content(model="gemini-2.0-flash", contents=msg_teste)
+            resp   = client.models.generate_content(model="gemini-2.5-flash", contents=msg_teste)
             st.success(f"Gemini OK — {resp.text[:50]}")
 
         elif provedor == "openai":
