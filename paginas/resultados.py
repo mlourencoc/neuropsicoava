@@ -370,7 +370,7 @@ def _gerar_e_salvar_insights(resultados, paciente, avaliacao_id, provedor, api_k
 
     modelos_label = {
         "claude":  "claude-sonnet-4-6",
-        "gemini":  "gemini-2.0-flash",
+        "gemini":  "gemini-2.5-flash",
         "openai":  "gpt-4o",
         "offline": "offline",
     }

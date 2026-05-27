@@ -77,7 +77,7 @@ def _visao_gemini(imagem_bytes, prompt, api_key):
         media_type = "image/png" if imagem_bytes[:8] == b'\x89PNG\r\n\x1a\n' else "image/jpeg"
         part_img  = types.Part.from_bytes(data=imagem_bytes, mime_type=media_type)
         resp = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[prompt, part_img],
         )
         return _processar_resposta(resp.text, "gemini")

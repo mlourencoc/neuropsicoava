@@ -23,11 +23,11 @@ PROVEDORES = {
     },
     "gemini": {
         "label":       "Gemini (Google)",
-        "descricao":   "Gemini 2.0 Flash — rápido, generoso no tier gratuito.",
+        "descricao":   "Gemini 2.5 Flash — rápido, generoso no tier gratuito.",
         "key_label":   "Chave API Google AI Studio",
         "key_help":    "Obtenha em aistudio.google.com/apikey",
         "placeholder": "AIza...",
-        "modelos":     "gemini-2.0-flash (insights e visão)",
+        "modelos":     "gemini-2.5-flash (insights e visão)",
         "cor":         "#1a73e8",
     },
     "openai": {

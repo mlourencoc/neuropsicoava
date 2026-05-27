@@ -2,7 +2,7 @@
 Módulo de insights clínicos com suporte a três provedores de IA:
   - offline  : análise por regras, sem custo, sem internet
   - claude   : Claude Sonnet (Anthropic)
-  - gemini   : Gemini 2.0 Flash (Google)
+  - gemini   : Gemini 2.5 Flash (Google)
   - openai   : GPT-4o (OpenAI)
 """
 
@@ -63,8 +63,8 @@ def _com_gemini(prompt, api_key):
     try:
         from google import genai
         client = genai.Client(api_key=api_key)
-        resp = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-        return f"=== ANÁLISE INTEGRADA (Gemini 2.0 Flash) ===\n\n{resp.text}"
+        resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        return f"=== ANÁLISE INTEGRADA (Gemini 2.5 Flash) ===\n\n{resp.text}"
     except ImportError:
         return _insights_offline(None, None) + "\n\n⚠️ Pacote 'google-genai' não instalado. Execute: pip install google-genai"
     except Exception as e:
