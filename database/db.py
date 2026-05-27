@@ -148,6 +148,15 @@ def finalizar_avaliacao(avaliacao_id):
     conn.close()
 
 
+def deletar_avaliacao(avaliacao_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM resultados_testes WHERE avaliacao_id = ?", (avaliacao_id,))
+    conn.execute("DELETE FROM insights_ia WHERE avaliacao_id = ?", (avaliacao_id,))
+    conn.execute("DELETE FROM avaliacoes WHERE id = ?", (avaliacao_id,))
+    conn.commit()
+    conn.close()
+
+
 # ── Resultados de testes ───────────────────────────────────────────────────
 
 def salvar_resultado_teste(avaliacao_id, teste_codigo, dados_brutos, escores, interpretacao, confianca):

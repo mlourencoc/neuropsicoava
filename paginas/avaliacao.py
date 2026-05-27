@@ -8,7 +8,7 @@ from datetime import date, datetime
 from database.db import (
     listar_pacientes, buscar_paciente, criar_avaliacao,
     buscar_avaliacoes_paciente, salvar_resultado_teste,
-    buscar_resultados_avaliacao, finalizar_avaliacao,
+    buscar_resultados_avaliacao, finalizar_avaliacao, deletar_avaliacao,
 )
 
 
@@ -54,23 +54,30 @@ def render():
     avals = buscar_avaliacoes_paciente(paciente_id)
     avals_abertas = [a for a in avals if a["status"] == "em_andamento"]
 
-    if avals_abertas:
-        opcoes_av = {"Criar nova avaliação": None}
-        opcoes_av.update({f"Avaliação de {a['data_avaliacao']} (em andamento)": a["id"] for a in avals_abertas})
-        escolha_av = st.selectbox("Avaliação:", list(opcoes_av.keys()))
-        avaliacao_id = opcoes_av[escolha_av]
-    else:
-        avaliacao_id = None
+    col_sel, col_nova = st.columns([3, 1])
+    with col_nova:
+        st.markdown(" ")
+        if st.button("＋ Nova Avaliação", use_container_width=True):
+            st.session_state["modo_nova_avaliacao"] = True
+
+    with col_sel:
+        if avals_abertas and not st.session_state.get("modo_nova_avaliacao"):
+            opcoes_av = {f"Avaliação {a['data_avaliacao']} (ID {a['id']})": a["id"] for a in avals_abertas}
+            escolha_av = st.selectbox("Avaliação em andamento:", list(opcoes_av.keys()))
+            avaliacao_id = opcoes_av[escolha_av]
+        else:
+            avaliacao_id = None
 
     if avaliacao_id is None:
         obs_comp = st.text_area(
             "Observações comportamentais (opcional):",
-            placeholder="Como o paciente se apresentou durante a avaliação: nível de atenção, cooperação, ansiedade...",
+            placeholder="Como o paciente se apresentou durante a avaliação...",
             height=80,
         )
         if st.button("Iniciar Avaliação", type="primary"):
             avaliacao_id = criar_avaliacao(paciente_id, obs_comportamentais=obs_comp)
             st.session_state["avaliacao_id_atual"] = avaliacao_id
+            st.session_state.pop("modo_nova_avaliacao", None)
             st.success(f"Avaliação iniciada (ID: {avaliacao_id})")
             st.rerun()
         return
@@ -119,10 +126,27 @@ def render():
     # Finalizar avaliação
     if resultados_existentes:
         st.markdown(f"**Testes inseridos ({len(resultados_existentes)}):** {', '.join(resultados_existentes.keys())}")
-        if st.button("✅ Finalizar Avaliação e Ver Resultados", type="primary"):
-            finalizar_avaliacao(avaliacao_id)
-            st.session_state["avaliacao_resultado_id"] = avaliacao_id
-            st.success("Avaliação finalizada! Acesse 'Resultados' para ver a análise completa.")
+        col_fin, col_del = st.columns([3, 1])
+        with col_fin:
+            if st.button("✅ Finalizar Avaliação e Ver Resultados", type="primary", use_container_width=True):
+                finalizar_avaliacao(avaliacao_id)
+                st.session_state["avaliacao_resultado_id"] = avaliacao_id
+                st.success("Avaliação finalizada! Acesse 'Resultados' para ver a análise completa.")
+        with col_del:
+            if st.button("🗑️ Apagar Avaliação", use_container_width=True):
+                st.session_state[f"confirmar_del_{avaliacao_id}"] = True
+
+    if st.session_state.get(f"confirmar_del_{avaliacao_id}"):
+        st.warning("Tem certeza? Todos os testes desta avaliação serão apagados.")
+        c1, c2 = st.columns(2)
+        if c1.button("Sim, apagar", type="primary"):
+            deletar_avaliacao(avaliacao_id)
+            st.session_state.pop(f"confirmar_del_{avaliacao_id}", None)
+            st.session_state.pop("avaliacao_id_atual", None)
+            st.rerun()
+        if c2.button("Cancelar"):
+            st.session_state.pop(f"confirmar_del_{avaliacao_id}", None)
+            st.rerun()
 
 
 def _renderizar_teste(codigo, avaliacao_id, paciente_id, idade, anos_esc, sexo, existentes):
@@ -132,32 +156,50 @@ def _renderizar_teste(codigo, avaliacao_id, paciente_id, idade, anos_esc, sexo, 
     # Upload de foto (modo IA)
     provedor = st.session_state.get("provedor_ia", "offline")
     if modo_ia:
-        if codigo == "RAVLT":
-            _upload_ravlt_duplo(avaliacao_id, provedor)
-        else:
-            st.markdown(f"#### Upload de Foto do Teste (IA: {provedor.capitalize()})")
+        st.markdown(f"#### Upload de Foto do Teste (IA: {provedor.capitalize()})")
+        counter_key = f"upload_counter_{codigo}_{avaliacao_id}"
+        counter = st.session_state.get(counter_key, 0)
+
+        col_up, col_nova = st.columns([4, 1])
+        with col_up:
             foto = st.file_uploader(
                 "Envie uma foto da folha de registro (JPG/PNG):",
                 type=["jpg", "jpeg", "png"],
-                key=f"foto_{codigo}_{avaliacao_id}",
+                key=f"foto_{codigo}_{avaliacao_id}_{counter}",
             )
-            if foto and st.button(f"Ler foto com {provedor.capitalize()}", key=f"ler_foto_{codigo}"):
-                from ia.visao import ler_foto_teste
-                with st.spinner("Analisando imagem..."):
-                    resultado_foto = ler_foto_teste(
-                        foto.read(), codigo,
-                        provedor=provedor,
-                        api_key=st.session_state.get(f"api_key_{provedor}", ""),
-                    )
-                if "erro" in resultado_foto:
-                    st.error(resultado_foto["erro"])
-                elif "_aviso" in resultado_foto:
-                    st.warning(resultado_foto["_aviso"])
-                    st.code(resultado_foto.get("texto_bruto", ""))
-                else:
-                    st.success("Dados extraídos! Revise abaixo e confirme.")
-                    st.session_state[f"dados_foto_{codigo}"] = resultado_foto
-                    st.json(resultado_foto)
+        with col_nova:
+            st.markdown(" ")
+            if st.button("🔄 Nova foto", key=f"nova_foto_{codigo}_{counter}", use_container_width=True):
+                st.session_state[counter_key] = counter + 1
+                st.session_state.pop(f"dados_foto_{codigo}", None)
+                st.rerun()
+
+        if foto and st.button(f"Ler foto com {provedor.capitalize()}", key=f"ler_foto_{codigo}_{counter}"):
+            from ia.visao import ler_foto_teste
+            with st.spinner("Analisando imagem..."):
+                resultado_foto = ler_foto_teste(
+                    foto.read(), codigo,
+                    provedor=provedor,
+                    api_key=st.session_state.get(f"api_key_{provedor}", ""),
+                )
+            if "erro" in resultado_foto:
+                st.error(resultado_foto["erro"])
+            elif "_aviso" in resultado_foto:
+                st.warning(resultado_foto["_aviso"])
+                st.code(resultado_foto.get("texto_bruto", ""))
+            else:
+                st.success("Dados extraídos! Revise os campos abaixo e clique em Calcular.")
+                st.session_state[f"dados_foto_{codigo}"] = resultado_foto
+                st.json(resultado_foto)
+                if codigo == "RAVLT":
+                    for campo, widget_key in _RAVLT_WIDGET_MAP.items():
+                        val = resultado_foto.get(campo)
+                        if val is not None:
+                            try:
+                                st.session_state[widget_key] = int(val)
+                            except (ValueError, TypeError):
+                                pass
+                    st.rerun()
 
         st.markdown("---")
 
@@ -189,53 +231,6 @@ _RAVLT_WIDGET_MAP = {
     "rec_hits": "ravlt_rec_h", "rec_fa": "ravlt_rec_fa",
 }
 
-
-def _upload_ravlt_duplo(avaliacao_id, provedor):
-    from ia.visao import ler_foto_teste
-    st.markdown(f"#### Upload de Fotos do RAVLT (IA: {provedor.capitalize()})")
-    col1, col2 = st.columns(2)
-    with col1:
-        foto_frente = st.file_uploader(
-            "📄 Frente (A1–A6, B1):",
-            type=["jpg", "jpeg", "png"],
-            key=f"foto_RAVLT_frente_{avaliacao_id}",
-        )
-    with col2:
-        foto_verso = st.file_uploader(
-            "📄 Verso (A7, Reconhecimento):",
-            type=["jpg", "jpeg", "png"],
-            key=f"foto_RAVLT_verso_{avaliacao_id}",
-        )
-
-    if (foto_frente or foto_verso) and st.button(
-        f"Ler foto(s) com {provedor.capitalize()}", key="ler_foto_RAVLT"
-    ):
-        dados_combinados = {}
-        api_key = st.session_state.get(f"api_key_{provedor}", "")
-        with st.spinner("Analisando imagem(ns)..."):
-            for foto in [foto_frente, foto_verso]:
-                if foto is None:
-                    continue
-                r = ler_foto_teste(foto.read(), "RAVLT", provedor=provedor, api_key=api_key)
-                if "erro" in r:
-                    st.error(r["erro"])
-                elif "_aviso" in r:
-                    st.warning(r["_aviso"])
-                else:
-                    dados_combinados.update({k: v for k, v in r.items() if not k.startswith("_") and v is not None})
-
-        if dados_combinados:
-            st.success("Dados extraídos! Revise os campos abaixo e clique em Calcular RAVLT.")
-            st.json(dados_combinados)
-            for campo, widget_key in _RAVLT_WIDGET_MAP.items():
-                val = dados_combinados.get(campo)
-                if val is not None:
-                    try:
-                        st.session_state[widget_key] = int(val)
-                    except (ValueError, TypeError):
-                        pass
-            st.session_state["dados_foto_RAVLT"] = dados_combinados
-            st.rerun()
 
 
 def _form_ravlt(avaliacao_id, idade, anos_esc, existentes):
